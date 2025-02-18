@@ -2,5 +2,5 @@ streamlit
 requests
 beautifulsoup4
 pandas
-requests-html
-lxml[html_clean]  # Fix for ImportError
+urllib3
+
