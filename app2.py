@@ -1,3 +1,5 @@
+import os
+os.system("pip install lxml[html_clean] lxml_html_clean --quiet")
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
