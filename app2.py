@@ -3,17 +3,21 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 import os
+import asyncio
 from requests_html import HTMLSession
 
 # Function to fetch search results
-def fetch_search_results(base_url, search_url, keyword):
+async def fetch_search_results(base_url, search_url, keyword):
     session = HTMLSession()
     pdf_links = []
 
     for page in range(1, 7):  # Looping through 6 pages
         url = f"{search_url}?page={page}"
         response = session.get(url)
-        response.html.render(timeout=30)  # Render JavaScript
+
+        # Fix for event loop issue
+        await response.html.arender(timeout=30)
+
         soup = BeautifulSoup(response.html.html, "html.parser")
 
         # Find all links in search results
@@ -25,10 +29,13 @@ def fetch_search_results(base_url, search_url, keyword):
     return pdf_links
 
 # Function to find "FULL TEXT" PDF links inside each search result
-def find_pdf_links(url):
+async def find_pdf_links(url):
     session = HTMLSession()
     response = session.get(url)
-    response.html.render(timeout=30)
+
+    # Fix for event loop issue
+    await response.html.arender(timeout=30)
+
     soup = BeautifulSoup(response.html.html, "html.parser")
 
     pdf_url = None
@@ -67,15 +74,15 @@ keyword = "SL Purchasing Managers’ Index (PMI)"
 if st.button("🔍 Search for PDFs"):
     st.write("🔎 Searching for PMI reports... Please wait.")
     
-    # Scrape search results
-    result_links = fetch_search_results(base_url, search_url, keyword)
+    # Run async function in Streamlit
+    result_links = asyncio.run(fetch_search_results(base_url, search_url, keyword))
 
     if result_links:
         st.success(f"✅ Found {len(result_links)} reports! Extracting PDFs...")
 
         pdf_data = []
         for result in result_links:
-            pdf_link = find_pdf_links(result)
+            pdf_link = asyncio.run(find_pdf_links(result))
             if pdf_link:
                 pdf_data.append({"Report Link": result, "PDF Link": pdf_link})
 
