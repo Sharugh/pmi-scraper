@@ -1,29 +1,27 @@
-import os
-os.system("pip install lxml[html_clean] lxml_html_clean --quiet")
-
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
-from requests_html import HTMLSession
+import os
 
-# Function to scrape PDFs (handles JavaScript rendering)
-def scrape_pdfs(url, keyword):
-    session = HTMLSession()
+# Function to scrape PDF links
+def scrape_pdfs(url):
     try:
-        response = session.get(url)
-        response.html.render(timeout=30)  # Render JavaScript
-        soup = BeautifulSoup(response.html.html, "html.parser")
+        response = requests.get(url)
+        if response.status_code != 200:
+            return []
 
+        soup = BeautifulSoup(response.text, "html.parser")
         pdf_links = []
+
         for link in soup.find_all("a", href=True):
             href = link["href"]
-            if ".pdf" in href.lower() and keyword.lower() in link.text.lower():
+            if href.endswith(".pdf"):
                 pdf_links.append(href if href.startswith("http") else url + href)
 
         return pdf_links
     except Exception as e:
-        return []
+        return str(e)
 
 # Function to download PDFs
 def download_pdf(pdf_url):
@@ -33,43 +31,48 @@ def download_pdf(pdf_url):
             filename = pdf_url.split("/")[-1]
             with open(filename, "wb") as pdf_file:
                 for chunk in response.iter_content(chunk_size=1024):
-                    pdf_file.write(chunk)
+                    if chunk:
+                        pdf_file.write(chunk)
             return filename
-        return None
-    except:
+        else:
+            return None
+    except Exception as e:
         return None
 
 # Streamlit UI
-st.title("📄 PDF Scraper & Downloader (Streamlit Cloud Compatible)")
-st.write("Enter a website URL and keyword to search and download PDFs.")
+st.title("PDF Scraper & Downloader")
+st.write("Enter a website URL to extract and download PDFs.")
 
-# User inputs
-url = st.text_input("🔗 Enter the website URL (including https://):")
-keyword = st.text_input("🔍 Enter the keyword present in the website:")
+# User input for the website URL
+url = st.text_input("Enter the website URL (including https://):")
 
-if url and keyword:
-    st.write("🔎 Searching for PDFs... Please wait.")
-    
-    # Scrape PDFs
-    pdf_links = scrape_pdfs(url, keyword)
+if url:
+    st.write("Searching for PDFs... Please wait.")
+    pdf_links = scrape_pdfs(url)
 
     if pdf_links:
-        st.success(f"✅ Found {len(pdf_links)} PDFs related to '{keyword}'!")
+        st.success(f"Found {len(pdf_links)} PDFs!")
+        
+        # Search bar for filtering PDFs
+        search_query = st.text_input("Search for a PDF (optional):")
+        if search_query:
+            pdf_links = [link for link in pdf_links if search_query.lower() in link.lower()]
 
-        # Display PDFs in a dataframe
+        # Display the PDFs
         df = pd.DataFrame({"PDF Links": pdf_links})
         st.dataframe(df)
 
-        # Select and download PDFs
-        selected_pdf = st.selectbox("📂 Select a PDF to download:", pdf_links)
-        if st.button("⬇️ Download PDF"):
+        # Download option
+        selected_pdf = st.selectbox("Select a PDF to download:", pdf_links)
+        if st.button("Download PDF"):
             filename = download_pdf(selected_pdf)
             if filename:
                 with open(filename, "rb") as file:
-                    st.download_button(label="📥 Click to Download", data=file, file_name=filename, mime="application/pdf")
+                    st.download_button(label="Click to Download", data=file, file_name=filename, mime="application/pdf")
             else:
-                st.error("⚠️ Failed to download the PDF. Try another one.")
-    else:
-        st.error("❌ No PDFs found with the given keyword.")
+                st.error("Failed to download the PDF. Try another one.")
 
-st.write("📌 Works on both static and JavaScript-rendered websites.")
+    else:
+        st.error("No PDFs found on this website.")
+
+st.write("📌 This tool works on any website that hosts PDFs.")
