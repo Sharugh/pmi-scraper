@@ -4,19 +4,18 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import os
 import asyncio
-from requests_html import HTMLSession
+from requests_html import AsyncHTMLSession
 
 # Function to fetch search results
 async def fetch_search_results(base_url, search_url, keyword):
-    session = HTMLSession()
+    session = AsyncHTMLSession()
     pdf_links = []
 
     for page in range(1, 7):  # Looping through 6 pages
         url = f"{search_url}?page={page}"
-        response = session.get(url)
+        response = await session.get(url)
 
-        # Fix for event loop issue
-        await response.html.arender(timeout=30)
+        await response.html.arender(timeout=30)  # Fix async issue
 
         soup = BeautifulSoup(response.html.html, "html.parser")
 
@@ -30,17 +29,16 @@ async def fetch_search_results(base_url, search_url, keyword):
 
 # Function to find "FULL TEXT" PDF links inside each search result
 async def find_pdf_links(url):
-    session = HTMLSession()
-    response = session.get(url)
+    session = AsyncHTMLSession()
+    response = await session.get(url)
 
-    # Fix for event loop issue
-    await response.html.arender(timeout=30)
+    await response.html.arender(timeout=30)  # Fix async issue
 
     soup = BeautifulSoup(response.html.html, "html.parser")
 
     pdf_url = None
     for link in soup.find_all("a", href=True):
-        if "FULL TEXT" in link.text.upper():  # Clicking on "FULL TEXT"
+        if "FULL TEXT" in link.text.upper():
             pdf_url = link["href"]
             if not pdf_url.startswith("http"):
                 pdf_url = url.rsplit("/", 1)[0] + "/" + pdf_url
@@ -104,3 +102,4 @@ if st.button("🔍 Search for PDFs"):
         st.error("❌ No reports found.")
 
 st.write("📌 Works on CBSL search results for PMI reports.")
+
