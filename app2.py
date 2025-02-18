@@ -3,56 +3,16 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 import os
-import time
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
+from requests_html import HTMLSession  # Works on Streamlit Cloud
 
-# Function to set up Selenium WebDriver
-def get_driver():
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")  # Run in headless mode
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
-
-# Function to scrape PDFs with Selenium (for dynamic pages)
-def scrape_pdfs_selenium(url, keyword):
-    driver = get_driver()
-    driver.get(url)
-    time.sleep(3)  # Allow page to load
-
-    # Click "See more" or similar buttons if present
+# Function to scrape PDFs (handles JavaScript rendering)
+def scrape_pdfs(url, keyword):
+    session = HTMLSession()
     try:
-        buttons = driver.find_elements(By.XPATH, "//button[contains(text(), 'See more')]")
-        for button in buttons:
-            button.click()
-            time.sleep(2)  # Wait for new content to load
-    except:
-        pass
+        response = session.get(url)
+        response.html.render(timeout=30)  # Render JavaScript
+        soup = BeautifulSoup(response.html.html, "html.parser")
 
-    # Extract PDF links
-    soup = BeautifulSoup(driver.page_source, "html.parser")
-    pdf_links = []
-    for link in soup.find_all("a", href=True):
-        href = link["href"]
-        if ".pdf" in href.lower() and keyword.lower() in link.text.lower():
-            pdf_links.append(href if href.startswith("http") else url + href)
-
-    driver.quit()
-    return pdf_links
-
-# Function to scrape PDFs using BeautifulSoup (for static pages)
-def scrape_pdfs_bs(url, keyword):
-    try:
-        response = requests.get(url)
-        if response.status_code != 200:
-            return []
-
-        soup = BeautifulSoup(response.text, "html.parser")
         pdf_links = []
         for link in soup.find_all("a", href=True):
             href = link["href"]
@@ -71,16 +31,14 @@ def download_pdf(pdf_url):
             filename = pdf_url.split("/")[-1]
             with open(filename, "wb") as pdf_file:
                 for chunk in response.iter_content(chunk_size=1024):
-                    if chunk:
-                        pdf_file.write(chunk)
+                    pdf_file.write(chunk)
             return filename
-        else:
-            return None
-    except Exception as e:
+        return None
+    except:
         return None
 
 # Streamlit UI
-st.title("📄 Advanced PDF Scraper & Downloader")
+st.title("📄 PDF Scraper & Downloader (Streamlit Cloud Compatible)")
 st.write("Enter a website URL and keyword to search and download PDFs.")
 
 # User inputs
@@ -90,8 +48,8 @@ keyword = st.text_input("🔍 Enter the keyword present in the website:")
 if url and keyword:
     st.write("🔎 Searching for PDFs... Please wait.")
     
-    # Try both scraping methods
-    pdf_links = scrape_pdfs_selenium(url, keyword) + scrape_pdfs_bs(url, keyword)
+    # Scrape PDFs
+    pdf_links = scrape_pdfs(url, keyword)
 
     if pdf_links:
         st.success(f"✅ Found {len(pdf_links)} PDFs related to '{keyword}'!")
@@ -112,4 +70,4 @@ if url and keyword:
     else:
         st.error("❌ No PDFs found with the given keyword.")
 
-st.write("📌 Works on both static and dynamic websites.")
+st.write("📌 Works on both static and JavaScript-rendered websites.")
